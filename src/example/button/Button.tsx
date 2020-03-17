@@ -23,8 +23,10 @@ export interface ButtonProperties extends PickSome, OtherBase {
 }
 
 const factory = create({ theme }).properties<ButtonProperties>();
-export default factory(function Button({ properties, middleware: { theme } }) {
+
+export const Button = factory(function Button({ properties, middleware: { theme } }) {
 	const { label } = properties();
 	const themedCss = theme.classes(css);
 	return <button classes={[themedCss.root]}>{label}</button>;
 });
+export default Button;

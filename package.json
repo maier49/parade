@@ -2,6 +2,7 @@
   "name": "@dojo/parade",
   "version": "0.0.10-pre",
   "scripts": {
+    "build": "dojo build app",
     "dev": "dojo build app -m dev -w -s",
     "start": "npm run dev",
     "dist": "dojo build widget -t lib",
@@ -13,7 +14,7 @@
     "release": "npm run package && dojo-release"
   },
   "peerDependencies": {
-    "@dojo/framework": "7.0.0-alpha.7",
+    "@dojo/framework": "7.0.0-alpha.10",
     "@dojo/themes": "^6.0.0"
   },
   "dependencies": {
@@ -32,9 +33,9 @@
   },
   "devDependencies": {
     "@dojo/cli": "7.0.0-alpha.1",
-    "@dojo/cli-build-app": "7.0.0-alpha.6",
-    "@dojo/cli-build-widget": "7.0.0-alpha.5",
-    "@dojo/framework": "next",
+    "@dojo/cli-build-app": "file:../cli-build-app/dist/release/dojo-cli-build-app-7.0.0-pre.tgz",
+    "@dojo/cli-build-widget": "7.0.0-alpha.6",
+    "@dojo/framework": "7.0.0-alpha.10",
     "@dojo/scripts": "^4.0.2",
     "@dojo/themes": "^6.0.0",
     "@dojo/widgets": "next",

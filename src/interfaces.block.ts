@@ -1,5 +1,6 @@
 import * as path from 'canonical-path';
-import { Project, MethodSignature, PropertySignature, Type } from 'ts-morph';
+import * as ts from 'typescript';
+import { Project, MethodSignature, PropertySignature, Type, SourceFile } from 'ts-morph';
 
 function getInterfaceName(value: string, type = 'Properties') {
 	const result = value.replace(/-([a-z])/g, function(g) {
@@ -36,6 +37,57 @@ function getWidgetProperties(propsType: Type): PropertyInterface[] {
 		.map(format);
 }
 
+export function getInterfaceProperties(sourceFile: SourceFile, interfaceTypeName: string, props: {}, widgetName: string) {
+	const propsInterface =
+		sourceFile.getInterface(interfaceTypeName) ||
+		sourceFile.getTypeAlias(interfaceTypeName);
+
+	if (!propsInterface) {
+		console.warn(
+			`could not find interface for ${widgetName} ${getInterfaceName(widgetName)}`
+		);
+		return props;
+	}
+	let properties = getWidgetProperties(propsInterface.getType());
+	const unionTypes = propsInterface.getType().getUnionTypes();
+	if (unionTypes && unionTypes.length) {
+		unionTypes.forEach((unionType) => {
+			const unionProperties = getWidgetProperties(unionType);
+			unionProperties.forEach((unionProperty) => {
+				const property = properties.find((prop) => prop.name === unionProperty.name);
+				if (property) {
+					const types = unionProperty.type.split('|');
+					types.forEach((type) => {
+						if (property.type.indexOf(type) === -1) {
+							property.type = `${type} | ${property.type}`;
+						}
+					});
+				} else {
+					properties.push(unionProperty);
+				}
+			});
+		});
+	}
+
+	properties.sort((a, b) => {
+		if (a.optional && !b.optional) {
+			return 1;
+		}
+		if (!a.optional && b.optional) {
+			return -1;
+		}
+		if (a.name < b.name) {
+			return -1;
+		}
+		if (a.name > b.name) {
+			return 1;
+		}
+		return 0;
+	});
+
+	return properties;
+}
+
 export default function(config: { [index: string]: string }) {
 	const project = new Project({
 		tsConfigFilePath: path.join(process.cwd(), 'tsconfig.json')
@@ -51,58 +103,29 @@ export default function(config: { [index: string]: string }) {
 		}
 
 		const propsInterfaceTypeName = getInterfaceName(widgetName);
-		const propsInterface =
-			sourceFile.getInterface(propsInterfaceTypeName) ||
-			sourceFile.getTypeAlias(propsInterfaceTypeName);
 
-		if (!propsInterface) {
-			console.warn(
-				`could not find interface for ${widgetName} ${getInterfaceName(widgetName)}`
-			);
-			return props;
-		}
-		let properties = getWidgetProperties(propsInterface.getType());
-		const unionTypes = propsInterface.getType().getUnionTypes();
-		if (unionTypes && unionTypes.length) {
-			unionTypes.forEach((unionType) => {
-				const unionProperties = getWidgetProperties(unionType);
-				unionProperties.forEach((unionProperty) => {
-					const property = properties.find((prop) => prop.name === unionProperty.name);
-					if (property) {
-						const types = unionProperty.type.split('|');
-						types.forEach((type) => {
-							if (property.type.indexOf(type) === -1) {
-								property.type = `${type} | ${property.type}`;
-							}
-						});
-					} else {
-						properties.push(unionProperty);
-					}
-				});
-			});
+		const [ defaultExport = undefined ] = sourceFile.getExportSymbols().filter(symbol => symbol.getEscapedName() === 'default');
+
+		const type = defaultExport && defaultExport.getTypeAtLocation(sourceFile);
+		debugger;
+		let properties;
+		let children;
+		// Defer to normal interface procedure for classes since their properties must extend the appropriate interfaces
+		if (type && type.isClass()) {
+			properties = getInterfaceProperties(sourceFile, propsInterfaceTypeName, props, widgetName);
+			const childrenInterfaceTypeName = getInterfaceName(widgetName, 'Children');
+			const childrenInterface =
+				sourceFile.getInterface(childrenInterfaceTypeName) ||
+				sourceFile.getTypeAlias(childrenInterfaceTypeName);
+			children = childrenInterface && getWidgetProperties(childrenInterface.getType());
+		} else {
+			ts.isCallLikeExpression(null as any);
+			children = {};
+			properties = {};
+			// const node = ts
+			// defaultExport
 		}
 
-		properties.sort((a, b) => {
-			if (a.optional && !b.optional) {
-				return 1;
-			}
-			if (!a.optional && b.optional) {
-				return -1;
-			}
-			if (a.name < b.name) {
-				return -1;
-			}
-			if (a.name > b.name) {
-				return 1;
-			}
-			return 0;
-		});
-
-		const childrenInterfaceTypeName = getInterfaceName(widgetName, 'Children');
-		const childrenInterface =
-			sourceFile.getInterface(childrenInterfaceTypeName) ||
-			sourceFile.getTypeAlias(childrenInterfaceTypeName);
-		let children = childrenInterface && getWidgetProperties(childrenInterface.getType());
 		return { ...props, [widgetName]: { properties, children } };
 	}, {});
 }
